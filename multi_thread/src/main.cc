@@ -8,6 +8,9 @@
 #include "../include/material.h"
 #include "../include/bvh.h"
 #include "../include/texture.h"
+#include "../include/mesh.h"
+#include "../include/triangle.h"
+
 
 #include <iostream>
 #include <thread>
@@ -393,6 +396,45 @@ void perlin_spheres(int num_threads) {
     cam.render(world, num_threads);
 }
 
+void figure_7(int num_threads) {
+    // Scene setup
+    hittable_list world;
+
+    // Blue material for the mesh
+    auto mesh_material = make_shared<lambertian>(color(0.3, 0.3, 0.8));  // Changed to blue
+
+    // Add Nefertiti mesh directly
+    world.add(make_shared<mesh>("meshes/Nefertiti.obj", mesh_material));
+
+    // Add light source (toned down)
+    auto light = make_shared<diffuse_light>(color(7, 7, 7));  // Reduced intensity
+    world.add(make_shared<quad>(point3(-2, 4, -2), vec3(4,0,0), vec3(0,0,4), light));
+
+    // Camera setup
+    camera cam;
+
+    // Basic image settings
+    cam.aspect_ratio = 16.0 / 9.0;
+    cam.image_width = 400;
+    cam.samples_per_pixel = 50;
+    cam.max_depth = 50;
+
+    // Camera position (moved back)
+    cam.vfov = 40;
+    cam.lookfrom = point3(0, 1, 8);    // Moved from 5 to 8 to zoom out
+    cam.lookat = point3(0, 0, 0);
+    cam.vup = vec3(0, 1, 0);
+
+    // No depth of field
+    cam.defocus_angle = 0;
+
+    // Background
+    cam.background = color(0.7, 0.7, 0.7);
+
+    // Render
+    cam.render(world, num_threads);
+}
+
 
 int main() {
 
@@ -409,8 +451,10 @@ int main() {
         std::cout << "We able to rip:" << num_threads << " threads!!\n";
     }
 
+    
 
-    switch(9) {
+
+    switch(10) {
         case 1: bouncing_spheres(num_threads);  break;
         case 2: checkered_spheres(num_threads); break;
         case 3: earth(num_threads);             break;
@@ -420,6 +464,7 @@ int main() {
         case 7: cornell_box(num_threads);       break;
         case 8: cornell_smoke(num_threads);     break;
         case 9:  final_scene(800, 100, 40, num_threads); break;
+        case 10: figure_7(num_threads); break;
         default: final_scene(400,   250,  4, num_threads); break;
     }
 
