@@ -86,7 +86,7 @@ void figure_1(int num_threads) {
 
     // Create materials
     auto red_mat = make_shared<lambertian>(color(0.8, 0.2, 0.2));    // Bright red for truck
-    auto sun_mat = make_shared<diffuse_light>(color(90, 48, 18));    // Orange-yellow sun
+    auto sun_mat = make_shared<diffuse_light>(color(180, 96, 36));    // Orange-yellow sun
 
     // Add truck mesh
     auto truck = make_shared<mesh>("meshes/Cybertruck.obj", red_mat);
@@ -129,15 +129,15 @@ void figure_1(int num_threads) {
     world.add(leaves3);
 
     // Add multiple overlapping smoke volumes for puffier effect
-    auto smoke_boundary1 = make_shared<sphere>(point3(-1.5, 0.3, -5), 1.0, 
+    auto smoke_boundary1 = make_shared<sphere>(point3(-1.5, 0.3, -5), 1.0,
                                              make_shared<dielectric>(1.5));
     world.add(make_shared<constant_medium>(smoke_boundary1, 1.5, color(0.5, 0.5, 0.5)));
 
-    auto smoke_boundary2 = make_shared<sphere>(point3(-1.7, 0.4, -4.5), 0.8, 
+    auto smoke_boundary2 = make_shared<sphere>(point3(-1.7, 0.4, -4.5), 0.8,
                                              make_shared<dielectric>(1.5));
     world.add(make_shared<constant_medium>(smoke_boundary2, 2.0, color(0.6, 0.6, 0.6)));
 
-    auto smoke_boundary3 = make_shared<sphere>(point3(-1.3, 0.2, -5.5), 0.7, 
+    auto smoke_boundary3 = make_shared<sphere>(point3(-1.3, 0.2, -5.5), 0.7,
                                              make_shared<dielectric>(1.5));
     world.add(make_shared<constant_medium>(smoke_boundary3, 1.8, color(0.4, 0.4, 0.4)));
 
@@ -147,21 +147,21 @@ void figure_1(int num_threads) {
         double y_offset = random_double(-0.2, 0.2);
         double z_offset = random_double(2.5, 4.5);
         double size = random_double(0.05, 0.15);
-        
+
         auto fire_color = color(
             random_double(3, 5),
             random_double(0.4, 1.6),
             random_double(0.2, 0.4)
         );
-        
+
         auto fire_mat = make_shared<diffuse_light>(fire_color);
 
-        
+
         point3 center1(-1.5 + x_offset, 0.3 + y_offset, -z_offset);
         point3 center2(-1.5 + x_offset - 0.2,
                       0.3 + y_offset + random_double(-0.1, 0.1),
                       -z_offset + random_double(-0.2, 0.2));
-        
+
         world.add(make_shared<sphere>(center1, center2, size, fire_mat));
         lights.add(make_shared<sphere>(center1, center2, size, fire_mat));
     }
@@ -181,7 +181,7 @@ void figure_1(int num_threads) {
     // Basic image settings
     cam.aspect_ratio = 16.0 / 9.0;
     cam.image_width = 800;
-    cam.samples_per_pixel = 100;
+    cam.samples_per_pixel = 200;
     cam.max_depth = 50;
 
     // Camera position
@@ -193,8 +193,8 @@ void figure_1(int num_threads) {
     // No depth of field
     cam.defocus_angle = 0;
 
-    // Darker blue for sunset sky
-    cam.background = color(0.15, 0.25, 0.45);
+    // Brighter blue for sky
+    cam.background = color(0.4, 0.6, 0.9);
 
     // Render
     cam.render(world, num_threads, lights);
@@ -215,7 +215,7 @@ int main() {
         std::cout << "We able to rip:" << num_threads << " threads!!\n";
     }
 
-    
+
 
 
     switch(7) {
