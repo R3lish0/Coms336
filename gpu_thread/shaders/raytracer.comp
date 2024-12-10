@@ -1,0 +1,269 @@
+#version 430
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+// Input/Output buffers
+layout(std430, binding = 0) buffer OutputBuffer {
+    vec4 pixels[];
+};
+
+layout(std430, binding = 1) buffer SphereBuffer {
+    sphere_gpu_data spheres[];
+};
+
+layout(std430, binding = 2) buffer MaterialBuffer {
+    material_gpu_data materials[];
+};
+
+layout(std430, binding = 3) buffer TransformBuffer {
+    transform_gpu_data transforms[];
+};
+
+layout(std430, binding = 4) buffer TextureBuffer {
+    vec4 texture_data[];
+};
+
+layout(std430, binding = 5) buffer BVHBuffer {
+    bvh_node_gpu_data bvh_nodes[];
+};
+
+// Uniforms
+layout(location = 0) uniform camera_gpu_data camera;
+layout(location = 1) uniform int image_width;
+layout(location = 2) uniform int image_height;
+layout(location = 3) uniform int samples_per_pixel;
+layout(location = 4) uniform int max_depth;
+layout(location = 5) uniform uint seed;
+
+// Random number generation
+uint wang_hash(uint seed) {
+    seed = (seed ^ 61) ^ (seed >> 16);
+    seed *= 9;
+    seed = seed ^ (seed >> 4);
+    seed *= 0x27d4eb2d;
+    seed = seed ^ (seed >> 15);
+    return seed;
+}
+
+float random(inout uint state) {
+    state = wang_hash(state);
+    return float(state) / 4294967296.0;
+}
+
+vec3 random_in_unit_sphere(inout uint state) {
+    while (true) {
+        vec3 p = 2.0 * vec3(random(state), random(state), random(state)) - vec3(1);
+        if (dot(p, p) < 1.0) return p;
+    }
+}
+
+vec3 random_unit_vector(inout uint state) {
+    return normalize(random_in_unit_sphere(state));
+}
+
+// Ray-sphere intersection
+bool hit_sphere(sphere_gpu_data sphere, ray_gpu_data r, float t_min, float t_max, out float t, out vec3 normal) {
+    vec3 oc = r.origin - sphere.center;
+    float a = dot(r.direction, r.direction);
+    float half_b = dot(oc, r.direction);
+    float c = dot(oc, oc) - sphere.radius * sphere.radius;
+    float discriminant = half_b * half_b - a * c;
+
+    if (discriminant < 0) return false;
+    float sqrtd = sqrt(discriminant);
+    float root = (-half_b - sqrtd) / a;
+    
+    if (root < t_min || root > t_max) {
+        root = (-half_b + sqrtd) / a;
+        if (root < t_min || root > t_max)
+            return false;
+    }
+
+    t = root;
+    vec3 hit_point = r.origin + t * r.direction;
+    normal = (hit_point - sphere.center) / sphere.radius;
+    return true;
+}
+
+// Material scattering functions
+bool scatter_lambertian(material_gpu_data mat, ray_gpu_data r_in, vec3 hit_point, vec3 normal, 
+                       inout uint state, out vec3 attenuation, out ray_gpu_data scattered) {
+    vec3 scatter_direction = normal + random_unit_vector(state);
+    scattered.origin = hit_point;
+    scattered.direction = scatter_direction;
+    attenuation = mat.albedo;
+    return true;
+}
+
+bool scatter_metal(material_gpu_data mat, ray_gpu_data r_in, vec3 hit_point, vec3 normal,
+                  inout uint state, out vec3 attenuation, out ray_gpu_data scattered) {
+    vec3 reflected = reflect(normalize(r_in.direction), normal);
+    scattered.origin = hit_point;
+    scattered.direction = reflected + mat.fuzz * random_in_unit_sphere(state);
+    attenuation = mat.albedo;
+    return dot(scattered.direction, normal) > 0;
+}
+
+bool scatter_dielectric(material_gpu_data mat, ray_gpu_data r_in, vec3 hit_point, vec3 normal,
+                       bool front_face, inout uint state, out vec3 attenuation, out ray_gpu_data scattered) {
+    attenuation = vec3(1.0);
+    float refraction_ratio = front_face ? (1.0/mat.ir) : mat.ir;
+
+    vec3 unit_direction = normalize(r_in.direction);
+    float cos_theta = min(dot(-unit_direction, normal), 1.0);
+    float sin_theta = sqrt(1.0 - cos_theta*cos_theta);
+
+    bool cannot_refract = refraction_ratio * sin_theta > 1.0;
+    vec3 direction;
+
+    if (cannot_refract || reflectance(cos_theta, refraction_ratio) > random(state))
+        direction = reflect(unit_direction, normal);
+    else
+        direction = refract(unit_direction, normal, refraction_ratio);
+
+    scattered.origin = hit_point;
+    scattered.direction = direction;
+    return true;
+}
+
+float reflectance(float cosine, float ref_idx) {
+    float r0 = (1-ref_idx) / (1+ref_idx);
+    r0 = r0*r0;
+    return r0 + (1-r0)*pow((1 - cosine),5);
+}
+
+// Add texture sampling functions
+vec3 sample_texture(int material_index, vec3 p, vec2 uv) {
+    material_gpu_data mat = materials[material_index];
+    
+    if (mat.texture_type == 0) {
+        return mat.albedo;
+    }
+    else if (mat.texture_type == 1) {
+        // Checker texture
+        float scale = mat.texture_data.x;
+        bool is_odd = ((int)(floor(scale * p.x) + floor(scale * p.y) + floor(scale * p.z))) & 1;
+        return is_odd ? mat.albedo : mat.texture_data;
+    }
+    else if (mat.texture_type == 2) {
+        // Noise texture
+        return vec3(turbulence(p * mat.texture_data.x));
+    }
+    else {
+        // Image texture
+        return texture(sampler2D(mat.texture_id), uv).rgb;
+    }
+}
+
+// Add transform functions
+vec3 apply_transform(vec3 p, int transform_index) {
+    if (transform_index < 0) return p;
+    
+    transform_gpu_data transform = transforms[transform_index];
+    if (transform.type == 1) {
+        // Translation
+        return p + transform.offset;
+    }
+    else if (transform.type == 2) {
+        // Rotation around Y
+        float cos_theta = cos(transform.angle);
+        float sin_theta = sin(transform.angle);
+        float x = cos_theta * p.x + sin_theta * p.z;
+        float z = -sin_theta * p.x + cos_theta * p.z;
+        return vec3(x, p.y, z);
+    }
+    return p;
+}
+
+// Main ray color function
+vec3 ray_color(ray_gpu_data r, inout uint rng_state) {
+    vec3 accumulated_color = vec3(1.0);
+    ray_gpu_data current_ray = r;
+    
+    for(int depth = 0; depth < max_depth; depth++) {
+        float closest_t = 1e30;
+        int closest_sphere = -1;
+        vec3 normal;
+        bool hit_anything = false;
+        
+        // Check all spheres for intersection
+        for(int i = 0; i < spheres.length(); i++) {
+            float t;
+            vec3 temp_normal;
+            if(hit_sphere(spheres[i], current_ray, 0.001, closest_t, t, temp_normal)) {
+                hit_anything = true;
+                closest_t = t;
+                closest_sphere = i;
+                normal = temp_normal;
+            }
+        }
+        
+        if(!hit_anything) {
+            vec3 unit_direction = normalize(current_ray.direction);
+            float t = 0.5 * (unit_direction.y + 1.0);
+            vec3 background = (1.0-t)*vec3(1.0) + t*vec3(0.5, 0.7, 1.0);
+            return accumulated_color * background;
+        }
+
+        // Material scattering
+        sphere_gpu_data sphere = spheres[closest_sphere];
+        material_gpu_data mat = materials[sphere.material_index];
+        vec3 hit_point = current_ray.origin + closest_t * current_ray.direction;
+        
+        vec3 attenuation;
+        ray_gpu_data scattered;
+        bool scattered_success = false;
+        
+        if(mat.type == 0) { // Lambertian
+            scattered_success = scatter_lambertian(mat, current_ray, hit_point, normal, 
+                                                rng_state, attenuation, scattered);
+        }
+        else if(mat.type == 1) { // Metal
+            scattered_success = scatter_metal(mat, current_ray, hit_point, normal,
+                                           rng_state, attenuation, scattered);
+        }
+        else if(mat.type == 2) { // Dielectric
+            scattered_success = scatter_dielectric(mat, current_ray, hit_point, normal,
+                                                true, rng_state, attenuation, scattered);
+        }
+        
+        if(!scattered_success) {
+            return vec3(0.0);
+        }
+        
+        accumulated_color *= attenuation;
+        current_ray = scattered;
+    }
+    
+    return vec3(0.0); // Exceeded max depth
+}
+
+void main() {
+    ivec2 pixel_coords = ivec2(gl_GlobalInvocationID.xy);
+    if (pixel_coords.x >= image_width || pixel_coords.y >= image_height) {
+        return;
+    }
+
+    // Initialize random state for this pixel
+    uint rng_state = wang_hash(seed + uint(pixel_coords.y * image_width + pixel_coords.x));
+    
+    vec3 pixel_color = vec3(0.0);
+    
+    for(int s = 0; s < samples_per_pixel; s++) {
+        float u = float(pixel_coords.x + random(rng_state)) / float(image_width-1);
+        float v = float(pixel_coords.y + random(rng_state)) / float(image_height-1);
+        
+        ray_gpu_data r;
+        r.origin = camera.origin;
+        r.direction = camera.lower_left_corner + u*camera.horizontal + v*camera.vertical - camera.origin;
+        
+        pixel_color += ray_color(r, rng_state);
+    }
+    
+    // Average samples and apply gamma correction
+    pixel_color = pixel_color / float(samples_per_pixel);
+    pixel_color = sqrt(pixel_color); // Simple gamma correction
+    
+    int pixel_index = pixel_coords.y * image_width + pixel_coords.x;
+    pixels[pixel_index] = vec4(pixel_color, 1.0);
+} 
