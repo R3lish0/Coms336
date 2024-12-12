@@ -445,22 +445,22 @@ void quantum_lab_scene(int num_threads) {
     // Cup 2 - in gap between orbs 1 and 5
     auto cup2 = make_shared<mesh>("meshes/cup_small.obj", cup_material);
     auto rotated_cup2 = make_shared<rotate_y>(cup2, 120);
-    auto moved_cup2 = make_shared<translate>(rotated_cup2, vec3(8, 11, -15));
+    auto moved_cup2 = make_shared<translate>(rotated_cup2, vec3(6, 11, -15));
     world.add(moved_cup2);
     
-    // Cup 3 - in gap between orbs 6 and 7
+    // Cup 3 - adjusted to avoid orb 6's path
     auto cup3 = make_shared<mesh>("meshes/cup_small.obj", cup_material);
     auto rotated_cup3 = make_shared<rotate_y>(cup3, -30);
-    auto moved_cup3 = make_shared<translate>(rotated_cup3, vec3(15, 8, -5));
+    auto moved_cup3 = make_shared<translate>(rotated_cup3, vec3(20, 8, -5));  // Moved out 2 units
     world.add(moved_cup3);
 
     // Camera setup with closer zoom
     camera cam;
 
     cam.aspect_ratio = 16.0 / 9.0;
-    cam.image_width = 800;
-    cam.samples_per_pixel = 500;
-    cam.max_depth = 20;
+    cam.image_width = 400;
+    cam.samples_per_pixel = 200;
+    cam.max_depth = 40;
 
     cam.vfov = 45;
     cam.lookfrom = point3(25, 20, 25);  // Moved closer (was 35, 30, 35)
