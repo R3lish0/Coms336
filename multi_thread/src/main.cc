@@ -433,33 +433,33 @@ void quantum_lab_scene(int num_threads) {
     }
 
 
-    // Add multiple floating cups above everything
+    // Add multiple floating cups mixed with the orbs
     auto cup_material = make_shared<lambertian>(color(0.7, 0.7, 0.7));
     
-    // Cup 1
+    // Cup 1 - in gap between orbs 0 and 4
     auto cup1 = make_shared<mesh>("meshes/cup_small.obj", cup_material);
     auto rotated_cup1 = make_shared<rotate_y>(cup1, 45);
-    auto moved_cup1 = make_shared<translate>(rotated_cup1, vec3(-3, 18, 2));
+    auto moved_cup1 = make_shared<translate>(rotated_cup1, vec3(-13, 9, 8));
     world.add(moved_cup1);
     
-    // Cup 2
+    // Cup 2 - in gap between orbs 1 and 5
     auto cup2 = make_shared<mesh>("meshes/cup_small.obj", cup_material);
     auto rotated_cup2 = make_shared<rotate_y>(cup2, 120);
-    auto moved_cup2 = make_shared<translate>(rotated_cup2, vec3(4, 22, -1));
+    auto moved_cup2 = make_shared<translate>(rotated_cup2, vec3(8, 11, -15));
     world.add(moved_cup2);
     
-    // Cup 3
+    // Cup 3 - in gap between orbs 6 and 7
     auto cup3 = make_shared<mesh>("meshes/cup_small.obj", cup_material);
     auto rotated_cup3 = make_shared<rotate_y>(cup3, -30);
-    auto moved_cup3 = make_shared<translate>(rotated_cup3, vec3(0, 20, 3));
+    auto moved_cup3 = make_shared<translate>(rotated_cup3, vec3(15, 8, -5));
     world.add(moved_cup3);
 
     // Camera setup with closer zoom
     camera cam;
 
     cam.aspect_ratio = 16.0 / 9.0;
-    cam.image_width = 400;
-    cam.samples_per_pixel = 200;
+    cam.image_width = 800;
+    cam.samples_per_pixel = 500;
     cam.max_depth = 20;
 
     cam.vfov = 45;
