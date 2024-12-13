@@ -224,9 +224,9 @@ void simple_sphere_scene(int num_threads) {
 
     // Basic image settings
     cam.aspect_ratio = 16.0 / 9.0;
-    cam.image_width = 200;  // Reduced for faster testing
+    cam.image_width = 800;  // Reduced for faster testing
     cam.samples_per_pixel = 1000;
-    cam.max_depth = 50;
+    cam.max_depth = 40;
 
     // Camera position
     cam.vfov = 30;
@@ -252,7 +252,7 @@ void quantum_lab_scene(int num_threads) {
     auto glass = make_shared<dielectric>(1.5);
     auto tinted_glass = make_shared<dielectric>(1.7);
     auto chrome = make_shared<metal>(color(0.9, 0.9, 1.0), 0.1);  // Less fuzzy chrome
-    auto glow_blue = make_shared<diffuse_light>(color(1.0, 2.0, 25.0));  // Reduced from (2.0, 4.0, 50.0)
+    auto glow_blue = make_shared<diffuse_light>(color(0.2, 0.4, 15.0));  // Reduced from (2.0, 4.0, 50.0)
     auto floor_metal = make_shared<metal>(color(0.7, 0.7, 0.8), 0.1);  // Reflective floor
     auto glow_white = make_shared<diffuse_light>(color(10, 10, 10));   // For accent lights
 
@@ -308,7 +308,53 @@ void quantum_lab_scene(int num_threads) {
     world.add(make_shared<sphere>(point3(0, 5, 0), 4.5, tinted_glass));
     world.add(make_shared<sphere>(point3(0, 5, 0), 3.5, glass));
     world.add(make_shared<sphere>(point3(0, 5, 0), 2.0, glow_blue));
-    lights.add(make_shared<sphere>(point3(0, 5, 0), 2.0, nullptr));
+    lights.add(make_shared<sphere>(point3(0, 5, 0), 2.0, glow_blue));
+
+
+
+    // Orbiting larger metal spheres (with enhanced lighting)
+    for(int i = 0; i < 8; i++) {  // Changed from 7 to 8
+        // Customize position for each orb to distribute them around the scene
+        double radius, height, angle;
+        switch(i) {
+            case 0: radius = 15.0; height = 8.0; angle = pi/6; break;     // Front right
+            case 1: radius = 18.0; height = 12.0; angle = 4*pi/3; break;  // Back left
+            case 2: radius = 12.0; height = 15.0; angle = 3*pi/4; break;  // Mid left
+            case 3: radius = 20.0; height = 6.0; angle = 7*pi/4; break;   // Back right
+            case 4: radius = 16.0; height = 10.0; angle = 3*pi/2; break;  // Back center
+            case 5: radius = 14.0; height = 5.0; angle = pi/2; break;     // Front center
+            case 6: radius = 17.0; height = 7.0; angle = pi; break;       // Left side
+            case 7: radius = 19.0; height = 9.0; angle = 5*pi/4; break;   // New: Back left corner
+        }
+        
+        point3 center(radius * cos(angle), height, radius * sin(angle));
+        
+        // Create chrome-like metal sphere with slightly darker base color and tiny fuzz
+        auto sphere_mat = make_shared<metal>(
+            color(0.7, 0.7, 0.8),  // Slightly darker base color
+            0.1                    // Small amount of fuzz to break up perfect reflections
+        );
+        world.add(make_shared<sphere>(center, 1.5, sphere_mat));
+
+        // Create glowing ring around each sphere
+        double ring_radius = 2.4;
+        int ring_segments = 20;
+        
+        for(int j = 0; j < ring_segments; j++) {
+            double ring_angle = j * (2 * pi / ring_segments);
+            double ring_x = cos(ring_angle) * ring_radius;
+            double ring_z = sin(ring_angle) * ring_radius;
+            
+            vec3 ring_offset(ring_x, 0, ring_z);
+            point3 ring_center = center + ring_offset;
+            
+            auto ring_light = make_shared<diffuse_light>(color(3.0, 3.0, 3.5));  // Back to original brightness
+            auto ring_segment = make_shared<sphere>(ring_center, 0.2, ring_light);
+            world.add(ring_segment);
+            lights.add(make_shared<sphere>(ring_center, 0.2, nullptr));
+        }
+    }
+
 
     // Add metal pylons at corners with glowing bases
     for(int i = 0; i < 4; i++) {
@@ -369,7 +415,7 @@ void quantum_lab_scene(int num_threads) {
     camera cam;
 
     cam.aspect_ratio = 1;
-    cam.image_width = 300;
+    cam.image_width = 800;
     cam.samples_per_pixel = 800;
     cam.max_depth = 40;
 
