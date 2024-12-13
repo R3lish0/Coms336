@@ -175,6 +175,24 @@ void figure_1(int num_threads) {
     world.add(make_shared<sphere>(point3(-20, 4, -8), 2.0, sun_mat));
     lights.add(make_shared<sphere>(point3(-20, 4, -8), 2.0, sun_mat));
 
+    // Add distant stars
+    for(int i = 0; i < 200; i++) {
+        auto star_mat = make_shared<diffuse_light>(color(1, 1, 1));  // White stars
+        double distance = random_double(500, 1000);  // Random depth
+        
+        // Random position in a large sphere around the scene
+        double theta = random_double(0, 2*pi);
+        double phi = random_double(0, pi);
+        point3 star_pos(
+            distance * sin(phi) * cos(theta),
+            distance * sin(phi) * sin(theta) + 100,  // Lift stars up a bit
+            distance * cos(phi)
+        );
+        
+        world.add(make_shared<sphere>(star_pos, 0.5, star_mat));
+        lights.add(make_shared<sphere>(star_pos, 0.5, nullptr));
+    }
+
     // Camera setup
     camera cam;
 
@@ -376,8 +394,11 @@ void quantum_lab_scene(int num_threads) {
     }
 
     // Add reflective platform with geometric patterns
-    // Main platform
-    world.add(make_shared<quad>(point3(-15, -0.1, -15), vec3(30,0,0), vec3(0,0,30), floor_metal));
+    // Main platform - increased size significantly
+    world.add(make_shared<quad>(point3(-100, -0.1, -100), 
+                               vec3(200,0,0), 
+                               vec3(0,0,200), 
+                               floor_metal));
 
     // Add concentric rings in the floor
     for(int ring = 1; ring <= 3; ring++) {
@@ -411,23 +432,64 @@ void quantum_lab_scene(int num_threads) {
         world.add(make_shared<quad>(start, direction, width, chrome));
     }
 
+    // Add orbiting spheres with motion-blurred glowing rings
+    for(int i = 0; i < 4; i++) {
+        double angle = i * (2 * pi / 4);
+        double orbit_radius = 12.0;
+        point3 center(orbit_radius * cos(angle), 5, orbit_radius * sin(angle));
+        
+        // Add static metal sphere (no motion blur)
+        auto sphere_mat = make_shared<metal>(
+            color(0.7, 0.7, 0.8),  // Slightly darker base color
+            0.1                    // Small amount of fuzz
+        );
+        world.add(make_shared<sphere>(center, 1.5, sphere_mat));
+        
+        // Create motion-blurred ring around the sphere
+        int num_ring_spheres = 20;
+        double ring_radius = 2.0;
+        
+        auto glow_white = make_shared<diffuse_light>(color(10, 10, 10));  // Changed to white
+        
+        for(int j = 0; j < num_ring_spheres; j++) {
+            double ring_angle = j * (2 * pi / num_ring_spheres);
+            
+            point3 ring_center_start(
+                center.x() + ring_radius * cos(ring_angle),
+                center.y(),
+                center.z() + ring_radius * sin(ring_angle)
+            );
+            
+            double rotated_angle = ring_angle + pi;
+            point3 ring_center_end(
+                center.x() + ring_radius * cos(rotated_angle),
+                center.y(),
+                center.z() + ring_radius * sin(rotated_angle)
+            );
+
+            world.add(make_shared<sphere>(ring_center_start, ring_center_end, 0.2, glow_white));
+            lights.add(make_shared<sphere>(ring_center_start, ring_center_end, 0.2, nullptr));
+        }
+    }
+
     // Camera setup
     camera cam;
 
     cam.aspect_ratio = 1;
-    cam.image_width = 800;
-    cam.samples_per_pixel = 800;
+    cam.image_width = 400;
+    cam.samples_per_pixel = 200;
     cam.max_depth = 40;
 
     cam.vfov = 45;
-    cam.lookfrom = point3(25, 20, 25);
+    cam.lookfrom = point3(30, 25, 30);
     cam.lookat = point3(0, 10, 0);
     cam.vup = vec3(0, 1, 0);
 
     cam.defocus_angle = 0.4;
     cam.focus_dist = 30.0;
     
-    cam.background = color(0.02, 0.02, 0.04);
+    cam.background = color(0.0, 0.0, 0.0);
+
 
     cam.render(world, num_threads, lights);
 }
