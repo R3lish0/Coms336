@@ -250,15 +250,17 @@ void quantum_lab_scene(int num_threads) {
 
     // Materials
     auto glass = make_shared<dielectric>(1.5);
-    auto tinted_glass = make_shared<dielectric>(1.7);  // Different refractive index
-    auto chrome = make_shared<metal>(color(0.9, 0.9, 1.0), 1);  // Increased reflectivity
-    auto glow_blue = make_shared<diffuse_light>(color(0.4, 0.8, 15.0));
-    auto floor_mat = make_shared<metal>(color(0.2, 0.2, 0.2), 0.1);
-    
+    auto tinted_glass = make_shared<dielectric>(1.7);
+    auto chrome = make_shared<metal>(color(0.9, 0.9, 1.0), 0.1);  // Less fuzzy chrome
+    auto glow_blue = make_shared<diffuse_light>(color(1.0, 2.0, 25.0));  // Reduced from (2.0, 4.0, 50.0)
+    auto floor_metal = make_shared<metal>(color(0.7, 0.7, 0.8), 0.1);  // Reflective floor
+    auto glow_white = make_shared<diffuse_light>(color(10, 10, 10));   // For accent lights
+
     // Add glass enclosure around central sphere
-    double enclosure_size = 7.0;  // Size of the glass cage
-    double glass_thickness = 0.2;  // Thickness of glass panels
+    double enclosure_size = 7.0;
+    double glass_thickness = 0.2;
     
+    // Glass panels (same as before)
     // Top glass panel
     world.add(box(
         point3(-enclosure_size, enclosure_size + 5, -enclosure_size),
@@ -301,150 +303,79 @@ void quantum_lab_scene(int num_threads) {
         glass
     ));
 
-    // Central quantum containment (now inside glass enclosure)
+    // Central quantum containment
     world.add(make_shared<sphere>(point3(0, 5, 0), 5.0, glass));
     world.add(make_shared<sphere>(point3(0, 5, 0), 4.5, tinted_glass));
     world.add(make_shared<sphere>(point3(0, 5, 0), 3.5, glass));
     world.add(make_shared<sphere>(point3(0, 5, 0), 2.0, glow_blue));
     lights.add(make_shared<sphere>(point3(0, 5, 0), 2.0, nullptr));
 
-    // Orbiting larger metal spheres (with enhanced lighting)
-    for(int i = 0; i < 8; i++) {  // Changed from 7 to 8
-        // Customize position for each orb to distribute them around the scene
-        double radius, height, angle;
-        switch(i) {
-            case 0: radius = 15.0; height = 8.0; angle = pi/6; break;     // Front right
-            case 1: radius = 18.0; height = 12.0; angle = 4*pi/3; break;  // Back left
-            case 2: radius = 12.0; height = 15.0; angle = 3*pi/4; break;  // Mid left
-            case 3: radius = 20.0; height = 6.0; angle = 7*pi/4; break;   // Back right
-            case 4: radius = 16.0; height = 10.0; angle = 3*pi/2; break;  // Back center
-            case 5: radius = 14.0; height = 5.0; angle = pi/2; break;     // Front center
-            case 6: radius = 17.0; height = 7.0; angle = pi; break;       // Left side
-            case 7: radius = 19.0; height = 9.0; angle = 5*pi/4; break;   // New: Back left corner
-        }
-        
-        point3 center(radius * cos(angle), height, radius * sin(angle));
-        
-        // Create chrome-like metal sphere with slightly darker base color and tiny fuzz
-        auto sphere_mat = make_shared<metal>(
-            color(0.7, 0.7, 0.8),  // Slightly darker base color
-            0.1                    // Small amount of fuzz to break up perfect reflections
-        );
-        world.add(make_shared<sphere>(center, 1.5, sphere_mat));
-
-        // Create glowing ring around each sphere
-        double ring_radius = 2.4;
-        int ring_segments = 20;
-        
-        for(int j = 0; j < ring_segments; j++) {
-            double ring_angle = j * (2 * pi / ring_segments);
-            double ring_x = cos(ring_angle) * ring_radius;
-            double ring_z = sin(ring_angle) * ring_radius;
-            
-            vec3 ring_offset(ring_x, 0, ring_z);
-            point3 ring_center = center + ring_offset;
-            
-            auto ring_light = make_shared<diffuse_light>(color(3.0, 3.0, 3.5));  // Back to original brightness
-            auto ring_segment = make_shared<sphere>(ring_center, 0.2, ring_light);
-            world.add(ring_segment);
-            lights.add(make_shared<sphere>(ring_center, 0.2, nullptr));
-        }
-    }
-
-    // Add volumetric fog effect around the quantum core
-    auto fog_boundary = make_shared<sphere>(point3(0, 5, 0), 6.0, make_shared<dielectric>(1.5));
-    world.add(make_shared<constant_medium>(fog_boundary, 0.1, color(0.2, 0.4, 0.9)));
-
-    // Add metal pylons at corners
+    // Add metal pylons at corners with glowing bases
     for(int i = 0; i < 4; i++) {
         double angle = i * (2 * pi / 4);
         double radius = 10.0;
         point3 base(radius * cos(angle), 0, radius * sin(angle));
         
+        // Main pylon
         shared_ptr<hittable> pylon = box(point3(-0.5,-0.5,-0.5), point3(0.5,8,0.5), chrome);
         auto moved_pylon = make_shared<translate>(pylon, vec3(base.x(), 0, base.z()));
         world.add(moved_pylon);
+
+        // Glowing base for each pylon
+        shared_ptr<hittable> base_light = box(point3(-1,-0.1,-1), point3(1,0,1), glow_white);
+        auto moved_base = make_shared<translate>(base_light, vec3(base.x(), 0, base.z()));
+        world.add(moved_base);
+        lights.add(make_shared<quad>(point3(base.x()-1, 0, base.z()-1), 
+                                   vec3(2,0,0), vec3(0,0,2), nullptr));
     }
 
-    // Create continuous left-to-right smoke effect
-    for(int x = -25; x <= 25; x += 4) {  // Systematic coverage across x-axis
-        for(int z = -25; z <= 25; z += 4) {  // Full z-axis coverage
-            // Add variation to avoid perfect grid pattern
-            double x_offset = random_double(-2, 2);
-            double z_offset = random_double(-2, 2);
+    // Add reflective platform with geometric patterns
+    // Main platform
+    world.add(make_shared<quad>(point3(-15, -0.1, -15), vec3(30,0,0), vec3(0,0,30), floor_metal));
+
+    // Add concentric rings in the floor
+    for(int ring = 1; ring <= 3; ring++) {
+        double ring_radius = ring * 4.0;
+        int segments = 16 * ring;  // More segments for outer rings
+        
+        for(int i = 0; i < segments; i++) {
+            double angle1 = i * (2 * pi / segments);
+            double angle2 = (i + 1) * (2 * pi / segments);
             
-            // Base height varies with x position to create flow effect
-            double base_height = sin(x * 0.2) * 1.5;
+            point3 p1(ring_radius * cos(angle1), 0.01, ring_radius * sin(angle1));
+            point3 p2(ring_radius * cos(angle2), 0.01, ring_radius * sin(angle2));
             
-            // Multiple layers of smoke at each position
-            for(int layer = 0; layer < 3; layer++) {
-                double height = base_height + layer * 0.8 + random_double(-0.5, 0.5);
-                double size = random_double(3.0, 5.0);
-                
-                auto smoke_boundary = make_shared<sphere>(
-                    point3(x + x_offset, height, z + z_offset),
-                    size,
-                    make_shared<dielectric>(1.5)
-                );
-                world.add(make_shared<constant_medium>(
-                    smoke_boundary,
-                    0.04,  // Reduced from 0.15
-                    color(0.4, 0.4, 0.4)
-                ));
-            }
+            // Create thin metal strip
+            vec3 direction = p2 - p1;
+            vec3 width(0, 0, 0.2);
+            
+            world.add(make_shared<quad>(p1, direction, width, chrome));
         }
     }
 
-    // Add some higher wispy tendrils for vertical variation
-    for(int i = 0; i < 30; i++) {
-        double x = random_double(-25, 25);
-        double z = random_double(-25, 25);
-        double height = random_double(2.0, 5.0);
+    // Add radial lines
+    for(int i = 0; i < 8; i++) {
+        double angle = i * (pi / 4);
+        point3 start(0, 0.02, 0);
+        point3 end(12 * cos(angle), 0.02, 12 * sin(angle));
         
-        auto smoke_boundary = make_shared<sphere>(
-            point3(x, height, z),
-            random_double(2.0, 4.0),
-            make_shared<dielectric>(1.5)
-        );
-        world.add(make_shared<constant_medium>(
-            smoke_boundary,
-            0.03,  // Reduced from 0.1
-            color(0.5, 0.5, 0.5)
-        ));
+        vec3 direction = end - start;
+        vec3 width(0, 0, 0.1);
+        
+        world.add(make_shared<quad>(start, direction, width, chrome));
     }
 
-    // Add denser smoke near the quantum core
-    for(int i = 0; i < 20; i++) {
-        double r = random_double(0, 8);
-        double angle = random_double(0, 2*pi);
-        double x = r * cos(angle);
-        double z = r * sin(angle);
-        
-        auto smoke_boundary = make_shared<sphere>(
-            point3(x, random_double(0, 3), z),
-            random_double(2.0, 4.0),
-            make_shared<dielectric>(1.5)
-        );
-        world.add(make_shared<constant_medium>(
-            smoke_boundary,
-            0.05,  // Reduced from 0.2
-            color(0.4, 0.4, 0.4)
-        ));
-    }
-
-    
-
-    // Camera setup with closer zoom
+    // Camera setup
     camera cam;
 
     cam.aspect_ratio = 1;
-    cam.image_width = 800;
-    cam.samples_per_pixel = 650;
+    cam.image_width = 300;
+    cam.samples_per_pixel = 800;
     cam.max_depth = 40;
 
     cam.vfov = 45;
-    cam.lookfrom = point3(25, 20, 25);  // Moved closer (was 35, 30, 35)
-    cam.lookat = point3(0, 10, 0);      // Keeping same look target
+    cam.lookfrom = point3(25, 20, 25);
+    cam.lookat = point3(0, 10, 0);
     cam.vup = vec3(0, 1, 0);
 
     cam.defocus_angle = 0.4;
