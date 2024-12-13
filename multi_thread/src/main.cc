@@ -309,7 +309,7 @@ void quantum_lab_scene(int num_threads) {
     lights.add(make_shared<sphere>(point3(0, 5, 0), 2.0, nullptr));
 
     // Orbiting larger metal spheres (with enhanced lighting)
-    for(int i = 0; i < 6; i++) {  // Changed from 4 to 6
+    for(int i = 0; i < 8; i++) {  // Changed from 7 to 8
         // Customize position for each orb to distribute them around the scene
         double radius, height, angle;
         switch(i) {
@@ -317,8 +317,10 @@ void quantum_lab_scene(int num_threads) {
             case 1: radius = 18.0; height = 12.0; angle = 4*pi/3; break;  // Back left
             case 2: radius = 12.0; height = 15.0; angle = 3*pi/4; break;  // Mid left
             case 3: radius = 20.0; height = 6.0; angle = 7*pi/4; break;   // Back right
-            case 4: radius = 16.0; height = 10.0; angle = 3*pi/2; break;  // New: Back center
-            case 5: radius = 14.0; height = 5.0; angle = pi/2; break;    // New: Front center
+            case 4: radius = 16.0; height = 10.0; angle = 3*pi/2; break;  // Back center
+            case 5: radius = 14.0; height = 5.0; angle = pi/2; break;     // Front center
+            case 6: radius = 17.0; height = 7.0; angle = pi; break;       // Left side
+            case 7: radius = 19.0; height = 9.0; angle = 5*pi/4; break;   // New: Back left corner
         }
         
         point3 center(radius * cos(angle), height, radius * sin(angle));
@@ -430,28 +432,14 @@ void quantum_lab_scene(int num_threads) {
         ));
     }
 
-
-    // Add multiple floating cups mixed with the orbs
-    auto cup_material = make_shared<lambertian>(color(0.7, 0.7, 0.7));
     
-    // Cup 1 - left side
-    auto cup1 = make_shared<mesh>("meshes/cup_small.obj", cup_material);
-    auto rotated_cup1 = make_shared<rotate_y>(cup1, 45);
-    auto moved_cup1 = make_shared<translate>(rotated_cup1, vec3(-13, 9, 8));
-    world.add(moved_cup1);
-    
-    // Cup 3 - far right edge
-    auto cup3 = make_shared<mesh>("meshes/cup_small.obj", cup_material);
-    auto rotated_cup3 = make_shared<rotate_y>(cup3, -30);
-    auto moved_cup3 = make_shared<translate>(rotated_cup3, vec3(12, 12, 12));
-    world.add(moved_cup3);
 
     // Camera setup with closer zoom
     camera cam;
 
-    cam.aspect_ratio = 16.0/9.0;
-    cam.image_width = 600;
-    cam.samples_per_pixel = 450;
+    cam.aspect_ratio = 1;
+    cam.image_width = 800;
+    cam.samples_per_pixel = 650;
     cam.max_depth = 40;
 
     cam.vfov = 45;
