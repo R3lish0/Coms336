@@ -309,7 +309,7 @@ void quantum_lab_scene(int num_threads) {
     lights.add(make_shared<sphere>(point3(0, 5, 0), 2.0, nullptr));
 
     // Orbiting larger metal spheres (with enhanced lighting)
-    for(int i = 0; i < 8; i++) {
+    for(int i = 0; i < 6; i++) {  // Changed from 4 to 6
         // Customize position for each orb to distribute them around the scene
         double radius, height, angle;
         switch(i) {
@@ -317,10 +317,8 @@ void quantum_lab_scene(int num_threads) {
             case 1: radius = 18.0; height = 12.0; angle = 4*pi/3; break;  // Back left
             case 2: radius = 12.0; height = 15.0; angle = 3*pi/4; break;  // Mid left
             case 3: radius = 20.0; height = 6.0; angle = 7*pi/4; break;   // Back right
-            case 4: radius = 16.0; height = 10.0; angle = pi/2; break;    // Mid front
-            case 5: radius = 14.0; height = 13.0; angle = 5*pi/3; break;  // Back mid
-            case 6: radius = 22.0; height = 9.0; angle = pi/3; break;     // Far right
-            case 7: radius = 19.0; height = 7.0; angle = 3*pi/2; break;   // Far left
+            case 4: radius = 16.0; height = 10.0; angle = 3*pi/2; break;  // New: Back center
+            case 5: radius = 14.0; height = 5.0; angle = pi/2; break;    // New: Front center
         }
         
         point3 center(radius * cos(angle), height, radius * sin(angle));
@@ -451,9 +449,9 @@ void quantum_lab_scene(int num_threads) {
     // Camera setup with closer zoom
     camera cam;
 
-    cam.aspect_ratio = 16.0 / 9.0;
-    cam.image_width = 100;
-    cam.samples_per_pixel = 70;
+    cam.aspect_ratio = 16.0/9.0;
+    cam.image_width = 600;
+    cam.samples_per_pixel = 450;
     cam.max_depth = 40;
 
     cam.vfov = 45;

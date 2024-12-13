@@ -82,22 +82,32 @@ class camera {
 
         void render_line(const hittable& world, std::string **output, int j, const hittable& lights)
         {
-
-                for (int i = 0; i < image_width; i++) {
-                    color pixel_color(0,0,0);
-                    color color_arr[sqrt_spp * sqrt_spp];
-                    for (int s_i = 0; s_i < sqrt_spp; s_i++) {
-                        for (int s_j = 0; s_j < sqrt_spp; s_j++) {
-                            sample_color(world, i, j, s_i, s_j, color_arr, lights);
-                        }
+            // Pre-calculate these values outside all loops
+            const int samples = sqrt_spp * sqrt_spp;
+            const double inv_samples = 1.0 / samples;
+            color* color_arr = new color[samples];
+            
+            for (int i = 0; i < image_width; i++) {
+                color pixel_color(0,0,0);
+                std::fill_n(color_arr, samples, color(0,0,0));
+                
+                for (int s_i = 0; s_i < sqrt_spp; s_i++) {
+                    for (int s_j = 0; s_j < sqrt_spp; s_j++) {
+                        sample_color(world, i, j, s_i, s_j, color_arr, lights);
                     }
-
-                    for (int sample = 0; sample < sqrt_spp * sqrt_spp; sample++) {
-                        pixel_color += color_arr[sample];
-                    }
-
-                    output[j][i] = write_color(pixel_samples_scale * pixel_color);
                 }
+
+                // Use faster addition method
+                for (int sample = 0; sample < samples; sample++) {
+                    pixel_color += color_arr[sample];
+                }
+
+                // Use pre-calculated inverse instead of multiplication
+                pixel_color *= inv_samples;
+                output[j][i] = write_color(pixel_color);
+            }
+            
+            delete[] color_arr;
         }
 
         void sample_color(const hittable& world, int i, int j, int s_i, int s_j,
@@ -210,14 +220,14 @@ class camera {
         }
 
 
-        color ray_color(const ray& r, int depth,  const hittable& world, const hittable& lights) const {
+        color ray_color(const ray& r, int depth, const hittable& world, const hittable& lights) const {
 
             if(depth <= 0)
                 return color(0,0,0);
 
             hit_record rec;
-
-            // If the ray hits nothing, return the background color.
+            
+            // If the ray hits nothing, return the background color immediately
             if (!world.hit(r, interval(0.001, infinity), rec))
                 return background;
 
@@ -231,22 +241,25 @@ class camera {
                 return srec.attenuation * ray_color(srec.skip_pdf_ray, depth-1, world, lights);
             }
 
-
             auto light_ptr = make_shared<hittable_pdf>(lights, rec.p);
             mixture_pdf p(light_ptr, srec.pdf_ptr);
 
             ray scattered = ray(rec.p, p.generate(), r.time());
             auto pdf_value = p.value(scattered.direction());
 
+
             double scattering_pdf = rec.mat->scattering_pdf(r, rec, scattered);
 
-            color sample_color = ray_color(scattered, depth-1, world, lights);
-            color color_from_scatter =
-            (srec.attenuation * scattering_pdf * sample_color) / pdf_value;
+            // Skip extremely low contribution paths
+            if (pdf_value < 0.00001 || scattering_pdf < 0.00001) {
+                return color_from_emission;
+            }
 
+            color sample_color = ray_color(scattered, depth-1, world, lights);
+            
+            color color_from_scatter = (srec.attenuation * scattering_pdf * sample_color) / pdf_value;
 
             return color_from_emission + color_from_scatter;
-
         }
 };
 
